@@ -1,0 +1,1014 @@
+<!DOCTYPE html>
+<html lang="it" class="h-full dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="version" content="1.3.0">
+    <title>Diff Checker</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                        mono: ['Fira Code', 'JetBrains Mono', 'Consolas', 'monospace'],
+                    },
+                    colors: {
+                        diffAdd: {
+                            bg: 'rgba(16, 185, 129, 0.15)',
+                            text: '#34d399',
+                            border: '#059669',
+                            word: 'rgba(16, 185, 129, 0.35)',
+                        },
+                        diffRemove: {
+                            bg: 'rgba(244, 63, 94, 0.15)',
+                            text: '#fb7185',
+                            border: '#e11d48',
+                            word: 'rgba(244, 63, 94, 0.35)',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <!-- jsdiff Library -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jsdiff/5.2.0/diff.min.js"></script>
+
+    <style>
+        /* Custom scrollbar */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #0f172a;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #334155;
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #475569;
+        }
+
+        .diff-line {
+            font-family: 'Fira Code', monospace;
+            font-size: 13px;
+            line-height: 1.5;
+            white-space: pre;
+        }
+
+        .diff-line.wrap-text {
+            white-space: pre-wrap;
+            word-break: break-all;
+        }
+
+        .diff-gutter {
+            user-select: none;
+            -webkit-user-select: none;
+        }
+
+        .word-diff-add {
+            background-color: rgba(16, 185, 129, 0.35);
+            border-radius: 2px;
+            padding: 1px 2px;
+            font-weight: 600;
+        }
+
+        .word-diff-remove {
+            background-color: rgba(244, 63, 94, 0.35);
+            border-radius: 2px;
+            padding: 1px 2px;
+            text-decoration: line-through;
+            font-weight: 600;
+        }
+
+        /* Clean panel styling */
+        .simple-panel {
+            background: #1e293b;
+            border: 1px solid #334155;
+        }
+
+        /* Drag over visual effects */
+        .drag-over {
+            border-color: #6366f1 !important;
+            background-color: rgba(99, 102, 241, 0.1) !important;
+        }
+
+        /* Fullscreen viewer mode */
+        .diff-fullscreen {
+            position: fixed !important;
+            inset: 0 !important;
+            z-index: 9999 !important;
+            border-radius: 0 !important;
+            height: 100vh !important;
+            width: 100vw !important;
+            margin: 0 !important;
+        }
+    </style>
+</head>
+<body class="bg-slate-950 text-slate-200 h-full flex flex-col font-sans transition-colors duration-200">
+
+    <!-- Top Navigation Header -->
+    <header class="bg-slate-900 px-4 py-3 flex flex-wrap items-center justify-between gap-4 border-b border-slate-800">
+        <div class="flex items-center space-x-3">
+            <div class="h-9 w-9 rounded-lg bg-indigo-600 flex items-center justify-center text-white font-bold">
+                <i class="fa-solid fa-code-compare"></i>
+            </div>
+            <div>
+                <h1 class="text-base font-bold tracking-tight text-white flex items-center gap-2">
+                    Diff Checker <span class="text-[10px] font-semibold px-2 py-0.5 rounded bg-indigo-500/20 text-indigo-400 border border-indigo-500/30">v1.3.0</span>
+                </h1>
+            </div>
+        </div>
+
+        <!-- Quick Controls -->
+        <div class="flex items-center flex-wrap gap-2">
+            <!-- Swap Files Button -->
+            <button onclick="swapFiles()" title="Inverti File Originale e Modificato" class="px-3 py-1.5 text-xs font-medium bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg transition border border-slate-700 flex items-center gap-1.5">
+                <i class="fa-solid fa-right-left text-amber-400"></i>
+                <span class="hidden sm:inline">Inverti File</span>
+            </button>
+
+            <!-- Reset Button -->
+            <button onclick="clearAll()" class="px-3 py-1.5 text-xs font-medium bg-rose-950/40 hover:bg-rose-900/60 text-rose-300 rounded-lg transition border border-rose-800/50 flex items-center gap-1.5">
+                <i class="fa-solid fa-trash-can"></i>
+                <span class="hidden sm:inline">Pulisci Tutto</span>
+            </button>
+        </div>
+    </header>
+
+    <!-- Main Content Container -->
+    <main class="flex-1 flex flex-col min-h-0 overflow-hidden p-3 gap-3">
+
+        <!-- Input Section -->
+        <div id="input-container" class="grid grid-cols-1 md:grid-cols-2 gap-3 transition-all duration-300 shrink-0">
+            
+            <!-- File A Input Card (Original) -->
+            <div id="dropzone-a" class="simple-panel rounded-lg p-3 flex flex-col transition">
+                <div class="flex items-center justify-between mb-2">
+                    <div class="flex items-center gap-2">
+                        <span class="w-2.5 h-2.5 rounded-full bg-rose-500"></span>
+                        <h2 class="text-xs font-bold uppercase tracking-wider text-slate-300">File Originale (A)</h2>
+                        <span id="file-a-stats" class="text-[11px] text-slate-400 font-mono bg-slate-900 px-2 py-0.5 rounded border border-slate-800">0 righe</span>
+                    </div>
+                    <div class="flex items-center gap-1">
+                        <button onclick="copyInputText('a')" class="px-2 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded text-xs font-medium transition border border-slate-700 flex items-center gap-1" title="Copia contenuto A">
+                            <i class="fa-solid fa-copy text-cyan-400"></i> Copia
+                        </button>
+                        <label class="px-2 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded cursor-pointer text-xs font-medium transition border border-slate-700 flex items-center gap-1">
+                            <i class="fa-solid fa-folder-open text-amber-400"></i> Sfoglia
+                            <input type="file" id="file-input-a" class="hidden" onchange="handleFileUpload(event, 'a')">
+                        </label>
+                        <button onclick="clearText('a')" class="px-2 py-1 bg-rose-950/40 hover:bg-rose-900/60 text-rose-300 rounded text-xs font-medium transition border border-rose-800/50 flex items-center gap-1" title="Svuota testo A">
+                            <i class="fa-solid fa-trash-can"></i> Svuota
+                        </button>
+                    </div>
+                </div>
+                <textarea id="text-a" placeholder="Incolla qui il testo originale o trascina un file..." 
+                    class="w-full h-28 md:h-32 bg-slate-950 border border-slate-800 rounded-md p-2.5 text-xs font-mono text-slate-200 focus:outline-none focus:border-indigo-500 resize-y transition placeholder-slate-600"
+                    oninput="triggerDiff()"></textarea>
+            </div>
+
+            <!-- File B Input Card (Modified) -->
+            <div id="dropzone-b" class="simple-panel rounded-lg p-3 flex flex-col transition">
+                <div class="flex items-center justify-between mb-2">
+                    <div class="flex items-center gap-2">
+                        <span class="w-2.5 h-2.5 rounded-full bg-emerald-500"></span>
+                        <h2 class="text-xs font-bold uppercase tracking-wider text-slate-300">File Modificato (B)</h2>
+                        <span id="file-b-stats" class="text-[11px] text-slate-400 font-mono bg-slate-900 px-2 py-0.5 rounded border border-slate-800">0 righe</span>
+                    </div>
+                    <div class="flex items-center gap-1">
+                        <button onclick="copyInputText('b')" class="px-2 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded text-xs font-medium transition border border-slate-700 flex items-center gap-1" title="Copia contenuto B">
+                            <i class="fa-solid fa-copy text-cyan-400"></i> Copia
+                        </button>
+                        <label class="px-2 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded cursor-pointer text-xs font-medium transition border border-slate-700 flex items-center gap-1">
+                            <i class="fa-solid fa-folder-open text-amber-400"></i> Sfoglia
+                            <input type="file" id="file-input-b" class="hidden" onchange="handleFileUpload(event, 'b')">
+                        </label>
+                        <button onclick="clearText('b')" class="px-2 py-1 bg-rose-950/40 hover:bg-rose-900/60 text-rose-300 rounded text-xs font-medium transition border border-rose-800/50 flex items-center gap-1" title="Svuota testo B">
+                            <i class="fa-solid fa-trash-can"></i> Svuota
+                        </button>
+                    </div>
+                </div>
+                <textarea id="text-b" placeholder="Incolla qui il testo modificato o trascina un file..." 
+                    class="w-full h-28 md:h-32 bg-slate-950 border border-slate-800 rounded-md p-2.5 text-xs font-mono text-slate-200 focus:outline-none focus:border-indigo-500 resize-y transition placeholder-slate-600"
+                    oninput="triggerDiff()"></textarea>
+            </div>
+        </div>
+
+        <!-- Toggle Input Area Visibility & Action Bar -->
+        <div class="flex items-center justify-between px-1 py-0.5 text-xs">
+            <button onclick="toggleInputPanel()" id="btn-toggle-inputs" class="text-slate-400 hover:text-indigo-400 font-medium flex items-center gap-1.5 transition">
+                <i class="fa-solid fa-chevron-up text-[10px]" id="toggle-inputs-icon"></i>
+                <span id="toggle-inputs-text">Nascondi finestre di testo</span>
+            </button>
+
+            <!-- Diff Summary Badge -->
+            <div id="diff-summary-badge" class="flex items-center gap-3 font-mono font-medium text-xs bg-slate-900 px-3 py-1 rounded-full border border-slate-800">
+                <span class="text-emerald-400 flex items-center gap-1"><i class="fa-solid fa-plus text-[10px]"></i> <span id="stat-added">0</span> aggiunte</span>
+                <span class="text-rose-400 flex items-center gap-1"><i class="fa-solid fa-minus text-[10px]"></i> <span id="stat-removed">0</span> rimosse</span>
+                <span class="text-slate-400 flex items-center gap-1"><i class="fa-solid fa-equals text-[10px]"></i> <span id="stat-unchanged">0</span> invariate</span>
+            </div>
+        </div>
+
+        <!-- Main Visual Diff Viewer Component -->
+        <div id="diff-viewer-panel" class="flex-1 simple-panel rounded-lg flex flex-col overflow-hidden relative shadow-lg">
+            
+            <!-- In-Panel Header Bar (Includes view toggles, search, and Fullscreen Exit button) -->
+            <div id="diff-panel-header" class="bg-slate-900 px-3 py-2 border-b border-slate-800 flex flex-wrap items-center justify-between gap-2 text-xs shrink-0">
+                <div class="flex items-center gap-3">
+                    <span class="font-bold text-slate-200 uppercase tracking-wider text-[11px] flex items-center gap-1.5">
+                        <i class="fa-solid fa-code-compare text-indigo-400"></i>
+                        <span id="diff-view-title">Risultato Diff</span>
+                    </span>
+                    <!-- View Modes Selector -->
+                    <div id="view-mode-selector" class="flex items-center bg-slate-950 p-0.5 rounded-lg border border-slate-800">
+                        <button onclick="setViewMode('split')" class="btn-view-split px-2.5 py-1 rounded-md text-xs font-medium transition bg-indigo-600 text-white shadow-sm flex items-center gap-1.5">
+                            <i class="fa-solid fa-columns"></i> Affiancato
+                        </button>
+                        <button onclick="setViewMode('unified')" class="btn-view-unified px-2.5 py-1 rounded-md text-xs font-medium text-slate-400 hover:text-white transition flex items-center gap-1.5">
+                            <i class="fa-solid fa-list-ul"></i> Unificato (Mono)
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Search, Navigation & Fullscreen Button -->
+                <div class="flex items-center gap-2">
+                    <div class="relative">
+                        <input type="text" id="diff-search" placeholder="Cerca..." oninput="filterDiff()" class="bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1 text-xs text-slate-300 w-28 sm:w-36 focus:border-indigo-500 focus:outline-none transition-all">
+                        <i class="fa-solid fa-search absolute right-2 top-2 text-[10px] text-slate-500"></i>
+                    </div>
+
+                    <!-- Quick Scroll Buttons (In cima, A metà, Alla fine) -->
+                    <div class="flex items-center bg-slate-950 p-0.5 rounded-lg border border-slate-800 gap-0.5">
+                        <button onclick="scrollDiffTo('top')" class="px-2 py-1 hover:bg-slate-800 text-slate-300 hover:text-white rounded text-xs font-medium transition flex items-center gap-1" title="Vai in cima">
+                            <i class="fa-solid fa-angles-up text-[11px]"></i>
+                            <span class="hidden md:inline text-[11px]">Cima</span>
+                        </button>
+                        <button onclick="scrollDiffTo('middle')" class="px-2 py-1 hover:bg-slate-800 text-slate-300 hover:text-white rounded text-xs font-medium transition flex items-center gap-1 border-x border-slate-800" title="Vai a metà">
+                            <i class="fa-solid fa-arrows-up-down text-[10px]"></i>
+                            <span class="hidden md:inline text-[11px]">Metà</span>
+                        </button>
+                        <button onclick="scrollDiffTo('bottom')" class="px-2 py-1 hover:bg-slate-800 text-slate-300 hover:text-white rounded text-xs font-medium transition flex items-center gap-1" title="Vai alla fine">
+                            <i class="fa-solid fa-angles-down text-[11px]"></i>
+                            <span class="hidden md:inline text-[11px]">Fine</span>
+                        </button>
+                    </div>
+
+                    <button onclick="jumpNextDiff(-1)" class="p-1 px-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded border border-slate-700" title="Diff Precedente">
+                        <i class="fa-solid fa-chevron-up text-xs"></i>
+                    </button>
+                    <button onclick="jumpNextDiff(1)" class="p-1 px-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded border border-slate-700" title="Diff Successivo">
+                        <i class="fa-solid fa-chevron-down text-xs"></i>
+                    </button>
+
+                    <!-- Fullscreen Toggle Button (Always visible inside panel) -->
+                    <button onclick="toggleFullscreen()" id="btn-fullscreen" class="px-2.5 py-1 bg-indigo-600 hover:bg-indigo-500 text-white rounded border border-indigo-500 font-medium flex items-center gap-1.5 transition shadow-sm" title="Espandi a Schermo Intero">
+                        <i class="fa-solid fa-expand" id="icon-fullscreen"></i>
+                        <span id="label-fullscreen">Schermo intero</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Empty State Prompt -->
+            <div id="empty-state" class="absolute inset-0 flex flex-col items-center justify-center p-6 text-center z-10 bg-slate-950/90">
+                <div class="w-14 h-14 rounded-xl bg-slate-800 border border-slate-700 flex items-center justify-center text-indigo-400 text-xl mb-3">
+                    <i class="fa-solid fa-file-circle-plus"></i>
+                </div>
+                <h3 class="text-sm font-semibold text-slate-200 mb-1">Nessun file inserito</h3>
+                <p class="text-xs text-slate-400 max-w-sm">Incolla del testo o carica due file nei riquadri in alto per visualizzare le differenze in tempo reale.</p>
+            </div>
+
+            <!-- Split View Container -->
+            <div id="view-split-container" class="flex-1 flex overflow-hidden">
+                <!-- Left File Pane (Original) -->
+                <div id="pane-left" class="flex-1 flex flex-col min-w-0 border-r border-slate-800">
+                    <div class="bg-slate-900 px-3 py-1.5 border-b border-slate-800 text-[11px] font-semibold text-slate-400 uppercase tracking-wider flex justify-between items-center">
+                        <span>Originale (File A)</span>
+                        <span id="label-file-a-name" class="font-mono lowercase text-slate-500">testo-originale.txt</span>
+                    </div>
+                    <div id="diff-scroll-left" class="flex-1 overflow-auto">
+                        <table class="w-full border-collapse">
+                            <tbody id="diff-body-left"></tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Right File Pane (Modified) -->
+                <div id="pane-right" class="flex-1 flex flex-col min-w-0">
+                    <div class="bg-slate-900 px-3 py-1.5 border-b border-slate-800 text-[11px] font-semibold text-slate-400 uppercase tracking-wider flex justify-between items-center">
+                        <span>Modificato (File B)</span>
+                        <span id="label-file-b-name" class="font-mono lowercase text-slate-500">testo-modificato.txt</span>
+                    </div>
+                    <div id="diff-scroll-right" class="flex-1 overflow-auto">
+                        <table class="w-full border-collapse">
+                            <tbody id="diff-body-right"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Unified / Inline View Container -->
+            <div id="view-unified-container" class="flex-1 flex flex-col overflow-hidden hidden">
+                <div class="bg-slate-900 px-3 py-1.5 border-b border-slate-800 text-[11px] font-semibold text-slate-400 uppercase tracking-wider flex justify-between items-center">
+                    <span>Vista Unificata (Unified Diff)</span>
+                    <span class="font-mono lowercase text-slate-500">differenze combinate</span>
+                </div>
+                <div id="diff-scroll-unified" class="flex-1 overflow-auto">
+                    <table class="w-full border-collapse">
+                        <tbody id="diff-body-unified"></tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Minimap Strip -->
+            <div id="minimap-bar" class="absolute right-0 top-8 bottom-0 w-2.5 bg-slate-950/40 border-l border-slate-800/50 pointer-events-none z-20"></div>
+        </div>
+    </main>
+
+    <!-- Custom Toast Notification Box -->
+    <div id="toast" class="fixed bottom-5 right-5 z-50 bg-slate-800 border border-slate-700 text-slate-100 text-xs px-4 py-2.5 rounded-lg shadow-2xl flex items-center gap-2 transform translate-y-20 opacity-0 transition-all duration-300">
+        <i id="toast-icon" class="fa-solid fa-circle-check text-emerald-400 text-base"></i>
+        <span id="toast-message">Operazione completata!</span>
+    </div>
+
+    <script>
+        // --- Application State ---
+        const state = {
+            viewMode: 'split',
+            ignoreWhitespace: false,
+            ignoreCase: false,
+            collapseUnchanged: false,
+            wordWrap: false,
+            isFullscreen: false,
+            fileAName: 'File A',
+            fileBName: 'File B',
+            diffChunks: [],
+            currentDiffIndex: -1,
+            diffLinesIndices: []
+        };
+
+        window.addEventListener('DOMContentLoaded', () => {
+            setupDragAndDrop('dropzone-a', 'a');
+            setupDragAndDrop('dropzone-b', 'b');
+            setupSynchronizedScroll();
+            triggerDiff(); // Start empty
+
+            // Keyboard shortcut ESC to exit fullscreen
+            document.addEventListener('keydown', (e) => {
+                if (e.key === 'Escape' && state.isFullscreen) {
+                    toggleFullscreen();
+                }
+            });
+        });
+
+        // --- Toggle Fullscreen mode for diff viewer ---
+        function toggleFullscreen() {
+            const viewer = document.getElementById('diff-viewer-panel');
+            const icon = document.getElementById('icon-fullscreen');
+            const label = document.getElementById('label-fullscreen');
+            const viewSelector = document.getElementById('view-mode-selector');
+
+            state.isFullscreen = !state.isFullscreen;
+
+            if (state.isFullscreen) {
+                // Force unified (mono-finestra) view for fullscreen mode as requested
+                setViewMode('unified');
+                if (viewSelector) viewSelector.classList.add('hidden'); // Hide split toggle in full screen
+
+                viewer.classList.add('diff-fullscreen');
+                icon.className = 'fa-solid fa-compress';
+                label.textContent = 'Esci da schermo intero';
+                showToast('Schermo intero attivato (Vista Unificata Mono-Finestra)', 'info');
+            } else {
+                if (viewSelector) viewSelector.classList.remove('hidden');
+                viewer.classList.remove('diff-fullscreen');
+                icon.className = 'fa-solid fa-expand';
+                label.textContent = 'Schermo intero';
+                showToast('Modalità schermo intero disattivata', 'info');
+            }
+        }
+
+        // --- Drag and Drop Handlers ---
+        function setupDragAndDrop(dropzoneId, target) {
+            const el = document.getElementById(dropzoneId);
+            ['dragenter', 'dragover'].forEach(eventName => {
+                el.addEventListener(eventName, (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    el.classList.add('drag-over');
+                }, false);
+            });
+
+            ['dragleave', 'drop'].forEach(eventName => {
+                el.addEventListener(eventName, (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    el.classList.remove('drag-over');
+                }, false);
+            });
+
+            el.addEventListener('drop', (e) => {
+                const dt = e.dataTransfer;
+                const files = dt.files;
+                if (files.length > 0) {
+                    readFileContent(files[0], target);
+                }
+            });
+        }
+
+        function handleFileUpload(event, target) {
+            const file = event.target.files[0];
+            if (file) {
+                readFileContent(file, target);
+            }
+        }
+
+        function readFileContent(file, target) {
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                const content = e.target.result;
+                if (target === 'a') {
+                    document.getElementById('text-a').value = content;
+                    state.fileAName = file.name;
+                    document.getElementById('label-file-a-name').textContent = file.name;
+                } else {
+                    document.getElementById('text-b').value = content;
+                    state.fileBName = file.name;
+                    document.getElementById('label-file-b-name').textContent = file.name;
+                }
+                showToast(`Caricato file "${file.name}"`, 'success');
+                triggerDiff();
+            };
+            reader.onerror = () => {
+                showToast(`Errore durante la lettura del file`, 'error');
+            };
+            reader.readAsText(file);
+        }
+
+        function swapFiles() {
+            const textA = document.getElementById('text-a').value;
+            const textB = document.getElementById('text-b').value;
+            document.getElementById('text-a').value = textB;
+            document.getElementById('text-b').value = textA;
+
+            const nameA = state.fileAName;
+            state.fileAName = state.fileBName;
+            state.fileBName = nameA;
+
+            document.getElementById('label-file-a-name').textContent = state.fileAName;
+            document.getElementById('label-file-b-name').textContent = state.fileBName;
+
+            triggerDiff();
+            showToast('File invertiti con successo', 'info');
+        }
+
+        function clearAll() {
+            document.getElementById('text-a').value = '';
+            document.getElementById('text-b').value = '';
+            document.getElementById('file-a-stats').textContent = '0 righe';
+            document.getElementById('file-b-stats').textContent = '0 righe';
+            state.fileAName = 'File A';
+            state.fileBName = 'File B';
+            document.getElementById('label-file-a-name').textContent = 'testo-originale.txt';
+            document.getElementById('label-file-b-name').textContent = 'testo-modificato.txt';
+            triggerDiff();
+            showToast('Svuotati tutti i campi', 'info');
+        }
+
+        function clearText(target) {
+            if (target === 'a') {
+                document.getElementById('text-a').value = '';
+                document.getElementById('file-a-stats').textContent = '0 righe';
+            } else {
+                document.getElementById('text-b').value = '';
+                document.getElementById('file-b-stats').textContent = '0 righe';
+            }
+            triggerDiff();
+            showToast(`Finestra ${target.toUpperCase()} svuotata`, 'info');
+        }
+
+        function copyInputText(target) {
+            const text = target === 'a' ? document.getElementById('text-a').value : document.getElementById('text-b').value;
+            if (!text) {
+                showToast('Nessun testo da copiare', 'info');
+                return;
+            }
+            copyToClipboard(text);
+            showToast(`Contenuto del File ${target.toUpperCase()} copiato!`, 'success');
+        }
+
+        function toggleInputPanel() {
+            const container = document.getElementById('input-container');
+            const icon = document.getElementById('toggle-inputs-icon');
+            const text = document.getElementById('toggle-inputs-text');
+
+            if (container.classList.contains('hidden')) {
+                container.classList.remove('hidden');
+                icon.className = 'fa-solid fa-chevron-up text-[10px]';
+                text.textContent = 'Nascondi finestre di testo';
+            } else {
+                container.classList.add('hidden');
+                icon.className = 'fa-solid fa-chevron-down text-[10px]';
+                text.textContent = 'Mostra finestre di testo';
+            }
+        }
+
+        function setViewMode(mode) {
+            state.viewMode = mode;
+            const splitBtns = document.querySelectorAll('.btn-view-split');
+            const unifiedBtns = document.querySelectorAll('.btn-view-unified');
+            const splitContainer = document.getElementById('view-split-container');
+            const unifiedContainer = document.getElementById('view-unified-container');
+
+            splitBtns.forEach(btn => {
+                if (mode === 'split') {
+                    btn.className = 'btn-view-split px-2.5 py-1 rounded-md text-xs font-medium transition bg-indigo-600 text-white shadow-sm flex items-center gap-1.5';
+                } else {
+                    btn.className = 'btn-view-split px-2.5 py-1 rounded-md text-xs font-medium text-slate-400 hover:text-white transition flex items-center gap-1.5';
+                }
+            });
+
+            unifiedBtns.forEach(btn => {
+                if (mode === 'unified') {
+                    btn.className = 'btn-view-unified px-2.5 py-1 rounded-md text-xs font-medium transition bg-indigo-600 text-white shadow-sm flex items-center gap-1.5';
+                } else {
+                    btn.className = 'btn-view-unified px-2.5 py-1 rounded-md text-xs font-medium text-slate-400 hover:text-white transition flex items-center gap-1.5';
+                }
+            });
+
+            if (mode === 'split') {
+                splitContainer.classList.remove('hidden');
+                unifiedContainer.classList.add('hidden');
+            } else {
+                unifiedContainer.classList.remove('hidden');
+                splitContainer.classList.add('hidden');
+            }
+            renderDiff();
+        }
+
+        function toggleWordWrap() {
+            state.wordWrap = !state.wordWrap;
+            document.querySelectorAll('.diff-line').forEach(el => {
+                if (state.wordWrap) el.classList.add('wrap-text');
+                else el.classList.remove('wrap-text');
+            });
+        }
+
+        function triggerDiff() {
+            const valA = document.getElementById('text-a').value;
+            const valB = document.getElementById('text-b').value;
+
+            // Update line counters
+            const linesA = valA ? valA.split('\n').length : 0;
+            const linesB = valB ? valB.split('\n').length : 0;
+            document.getElementById('file-a-stats').textContent = `${linesA} ${linesA === 1 ? 'riga' : 'righe'}`;
+            document.getElementById('file-b-stats').textContent = `${linesB} ${linesB === 1 ? 'riga' : 'righe'}`;
+
+            const emptyState = document.getElementById('empty-state');
+            if (!valA && !valB) {
+                emptyState.classList.remove('hidden');
+                document.getElementById('diff-body-left').innerHTML = '';
+                document.getElementById('diff-body-right').innerHTML = '';
+                document.getElementById('diff-body-unified').innerHTML = '';
+                document.getElementById('stat-added').textContent = '0';
+                document.getElementById('stat-removed').textContent = '0';
+                document.getElementById('stat-unchanged').textContent = '0';
+                return;
+            } else {
+                emptyState.classList.add('hidden');
+            }
+
+            state.ignoreWhitespace = false;
+            state.ignoreCase = false;
+            state.collapseUnchanged = false;
+
+            const options = {
+                ignoreWhitespace: state.ignoreWhitespace,
+                ignoreCase: state.ignoreCase
+            };
+
+            state.diffChunks = Diff.diffLines(valA, valB, options);
+            renderDiff();
+        }
+
+        function renderDiff() {
+            const bodyLeft = document.getElementById('diff-body-left');
+            const bodyRight = document.getElementById('diff-body-right');
+            const bodyUnified = document.getElementById('diff-body-unified');
+
+            bodyLeft.innerHTML = '';
+            bodyRight.innerHTML = '';
+            bodyUnified.innerHTML = '';
+
+            let addedCount = 0;
+            let removedCount = 0;
+            let unchangedCount = 0;
+
+            let lineNumA = 1;
+            let lineNumB = 1;
+
+            state.diffLinesIndices = [];
+
+            const minimap = document.getElementById('minimap-bar');
+            minimap.innerHTML = '';
+
+            const wrapClass = state.wordWrap ? 'wrap-text' : '';
+
+            let i = 0;
+            const chunks = state.diffChunks;
+
+            while (i < chunks.length) {
+                const chunk = chunks[i];
+
+                if (!chunk.added && !chunk.removed) {
+                    const lines = chunk.value.replace(/\n$/, '').split('\n');
+                    unchangedCount += lines.length;
+
+                    lines.forEach((lineText) => {
+                        appendSplitRow(bodyLeft, lineNumA, lineText, 'normal', wrapClass);
+                        appendSplitRow(bodyRight, lineNumB, lineText, 'normal', wrapClass);
+                        appendUnifiedRow(bodyUnified, lineNumA, lineNumB, ' ', lineText, 'normal', wrapClass);
+
+                        lineNumA++;
+                        lineNumB++;
+                    });
+                    i++;
+                } else {
+                    let removedChunk = chunk.removed ? chunk : null;
+                    let addedChunk = chunk.added ? chunk : null;
+
+                    if (removedChunk && i + 1 < chunks.length && chunks[i + 1].added) {
+                        addedChunk = chunks[i + 1];
+                        i += 2;
+                    } else {
+                        i++;
+                    }
+
+                    const removedLines = removedChunk ? removedChunk.value.replace(/\n$/, '').split('\n') : [];
+                    const addedLines = addedChunk ? addedChunk.value.replace(/\n$/, '').split('\n') : [];
+
+                    removedCount += removedLines.length;
+                    addedCount += addedLines.length;
+
+                    const maxLines = Math.max(removedLines.length, addedLines.length);
+
+                    for (let idx = 0; idx < maxLines; idx++) {
+                        const remLine = removedLines[idx];
+                        const addLine = addedLines[idx];
+
+                        let wordDiffRem = null;
+                        let wordDiffAdd = null;
+
+                        if (remLine !== undefined && addLine !== undefined) {
+                            const wordDiff = Diff.diffWords(remLine, addLine, { ignoreCase: state.ignoreCase });
+                            wordDiffRem = buildWordDiffHTML(wordDiff, 'remove');
+                            wordDiffAdd = buildWordDiffHTML(wordDiff, 'add');
+                        }
+
+                        if (remLine !== undefined) {
+                            appendSplitRow(bodyLeft, lineNumA, remLine, 'remove', wrapClass, wordDiffRem);
+                            appendUnifiedRow(bodyUnified, lineNumA, '', '-', remLine, 'remove', wrapClass, wordDiffRem);
+                            lineNumA++;
+                        } else {
+                            appendSplitRow(bodyLeft, '', '', 'empty', wrapClass);
+                        }
+
+                        if (addLine !== undefined) {
+                            appendSplitRow(bodyRight, lineNumB, addLine, 'add', wrapClass, wordDiffAdd);
+                            appendUnifiedRow(bodyUnified, '', lineNumB, '+', addLine, 'add', wrapClass, wordDiffAdd);
+                            lineNumB++;
+                        } else {
+                            appendSplitRow(bodyRight, '', '', 'empty', wrapClass);
+                        }
+                    }
+                }
+            }
+
+            document.getElementById('stat-added').textContent = addedCount;
+            document.getElementById('stat-removed').textContent = removedCount;
+            document.getElementById('stat-unchanged').textContent = unchangedCount;
+
+            if (state.collapseUnchanged) {
+                applyCollapseUnchanged();
+            }
+        }
+
+        function buildWordDiffHTML(wordDiffArray, type) {
+            let html = '';
+            wordDiffArray.forEach(part => {
+                const escapeText = escapeHTML(part.value);
+                if (type === 'remove') {
+                    if (part.removed) {
+                        html += `<span class="word-diff-remove">${escapeText}</span>`;
+                    } else if (!part.added) {
+                        html += escapeText;
+                    }
+                } else if (type === 'add') {
+                    if (part.added) {
+                        html += `<span class="word-diff-add">${escapeText}</span>`;
+                    } else if (!part.removed) {
+                        html += escapeText;
+                    }
+                }
+            });
+            return html;
+        }
+
+        function appendSplitRow(tbody, lineNum, text, type, wrapClass, customHTML = null) {
+            const tr = document.createElement('tr');
+            let bgClass = 'hover:bg-slate-800/40';
+            let numClass = 'text-slate-600 bg-slate-900/50';
+
+            if (type === 'add') {
+                bgClass = 'bg-emerald-950/25 text-emerald-300 hover:bg-emerald-950/40';
+                numClass = 'text-emerald-500 bg-emerald-950/40 font-bold border-r border-emerald-800/40';
+            } else if (type === 'remove') {
+                bgClass = 'bg-rose-950/25 text-rose-300 hover:bg-rose-950/40';
+                numClass = 'text-rose-500 bg-rose-950/40 font-bold border-r border-rose-800/40';
+            } else if (type === 'empty') {
+                bgClass = 'bg-slate-950/50 opacity-40';
+                numClass = 'text-transparent bg-slate-950/50';
+            }
+
+            const lineContent = customHTML !== null ? customHTML : escapeHTML(text);
+
+            tr.className = `${bgClass} transition-colors`;
+            tr.innerHTML = `
+                <td class="diff-gutter w-12 text-right pr-3 py-0.5 select-none font-mono text-xs border-r border-slate-800 ${numClass}">${lineNum}</td>
+                <td class="pl-3 pr-2 py-0.5 diff-line ${wrapClass}">${lineContent}</td>
+            `;
+            tbody.appendChild(tr);
+        }
+
+        function appendUnifiedRow(tbody, lineNumA, lineNumB, prefix, text, type, wrapClass, customHTML = null) {
+            const tr = document.createElement('tr');
+            let bgClass = 'hover:bg-slate-800/40';
+            let prefixColor = 'text-slate-600';
+
+            if (type === 'add') {
+                bgClass = 'bg-emerald-950/25 text-emerald-300 hover:bg-emerald-950/40';
+                prefixColor = 'text-emerald-400 font-bold';
+            } else if (type === 'remove') {
+                bgClass = 'bg-rose-950/25 text-rose-300 hover:bg-rose-950/40';
+                prefixColor = 'text-rose-400 font-bold';
+            }
+
+            const lineContent = customHTML !== null ? customHTML : escapeHTML(text);
+
+            tr.className = `${bgClass} transition-colors`;
+            tr.innerHTML = `
+                <td class="diff-gutter w-10 text-right pr-2 py-0.5 select-none font-mono text-xs text-slate-600 bg-slate-900/50 border-r border-slate-800">${lineNumA}</td>
+                <td class="diff-gutter w-10 text-right pr-2 py-0.5 select-none font-mono text-xs text-slate-600 bg-slate-900/50 border-r border-slate-800">${lineNumB}</td>
+                <td class="w-6 text-center py-0.5 font-mono text-xs ${prefixColor} select-none">${prefix}</td>
+                <td class="pl-2 pr-2 py-0.5 diff-line ${wrapClass}">${lineContent}</td>
+            `;
+            tbody.appendChild(tr);
+        }
+
+        function applyCollapseUnchanged() {
+            const collapseRows = (tbody) => {
+                const rows = Array.from(tbody.querySelectorAll('tr'));
+                let unchangedBlock = [];
+
+                rows.forEach((row) => {
+                    const isNormal = !row.classList.contains('bg-emerald-950/25') && !row.classList.contains('bg-rose-950/25') && !row.classList.contains('bg-slate-950/50');
+                    
+                    if (isNormal) {
+                        unchangedBlock.push(row);
+                    } else {
+                        if (unchangedBlock.length > 6) {
+                            for (let i = 3; i < unchangedBlock.length - 3; i++) {
+                                unchangedBlock[i].classList.add('hidden');
+                            }
+                        }
+                        unchangedBlock = [];
+                    }
+                });
+            };
+
+            if (state.viewMode === 'split') {
+                collapseRows(document.getElementById('diff-body-left'));
+                collapseRows(document.getElementById('diff-body-right'));
+            } else {
+                collapseRows(document.getElementById('diff-body-unified'));
+            }
+        }
+
+        function setupSynchronizedScroll() {
+            const leftScroll = document.getElementById('diff-scroll-left');
+            const rightScroll = document.getElementById('diff-scroll-right');
+
+            let isSyncingLeft = false;
+            let isSyncingRight = false;
+
+            leftScroll.addEventListener('scroll', () => {
+                if (!isSyncingLeft) {
+                    isSyncingRight = true;
+                    rightScroll.scrollTop = leftScroll.scrollTop;
+                    rightScroll.scrollLeft = leftScroll.scrollLeft;
+                }
+                isSyncingLeft = false;
+            });
+
+            rightScroll.addEventListener('scroll', () => {
+                if (!isSyncingRight) {
+                    isSyncingLeft = true;
+                    leftScroll.scrollTop = rightScroll.scrollTop;
+                    leftScroll.scrollLeft = rightScroll.scrollLeft;
+                }
+                isSyncingRight = false;
+            });
+        }
+
+        function jumpNextDiff(direction) {
+            const container = state.viewMode === 'split' ? document.getElementById('diff-body-left') : document.getElementById('diff-body-unified');
+            const diffRows = Array.from(container.querySelectorAll('tr')).filter(row => 
+                row.classList.contains('bg-emerald-950/25') || row.classList.contains('bg-rose-950/25')
+            );
+
+            if (diffRows.length === 0) {
+                showToast('Nessuna differenza da navigare', 'info');
+                return;
+            }
+
+            state.currentDiffIndex += direction;
+            if (state.currentDiffIndex >= diffRows.length) state.currentDiffIndex = 0;
+            if (state.currentDiffIndex < 0) state.currentDiffIndex = diffRows.length - 1;
+
+            const targetRow = diffRows[state.currentDiffIndex];
+            targetRow.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            
+            highlightDiffRow(targetRow);
+
+            showToast(`Differenza ${state.currentDiffIndex + 1} di ${diffRows.length}`, 'info');
+        }
+
+        // --- Evidenziazione visiva blu per la riga selezionata ---
+        function highlightDiffRow(targetRow) {
+            if (!targetRow) return;
+            document.querySelectorAll('tr.ring-2').forEach(r => r.classList.remove('ring-2', 'ring-indigo-500'));
+            targetRow.classList.add('ring-2', 'ring-indigo-500');
+            setTimeout(() => targetRow.classList.remove('ring-2', 'ring-indigo-500'), 1500);
+        }
+
+        // --- Quick Scroll Navigation (Top, Middle, Bottom) ---
+        function scrollDiffTo(position) {
+            const isSplit = state.viewMode === 'split';
+            const containers = isSplit 
+                ? [document.getElementById('diff-scroll-left'), document.getElementById('diff-scroll-right')] 
+                : [document.getElementById('diff-scroll-unified')];
+
+            containers.forEach(container => {
+                if (!container) return;
+                const maxScroll = container.scrollHeight - container.clientHeight;
+
+                let target = 0;
+                if (position === 'top') target = 0;
+                else if (position === 'middle') target = maxScroll > 0 ? maxScroll / 2 : 0;
+                else if (position === 'bottom') target = maxScroll > 0 ? maxScroll : 0;
+
+                container.scrollTo({ top: target, behavior: 'smooth' });
+            });
+
+            // Sincronizza l'indice di selezione e l'evidenziazione blu per Cima e Fine
+            const container = isSplit ? document.getElementById('diff-body-left') : document.getElementById('diff-body-unified');
+            if (container) {
+                const diffRows = Array.from(container.querySelectorAll('tr')).filter(row => 
+                    row.classList.contains('bg-emerald-950/25') || row.classList.contains('bg-rose-950/25')
+                );
+
+                if (diffRows.length > 0) {
+                    if (position === 'top') {
+                        state.currentDiffIndex = 0;
+                        highlightDiffRow(diffRows[0]);
+                    } else if (position === 'bottom') {
+                        state.currentDiffIndex = diffRows.length - 1;
+                        highlightDiffRow(diffRows[diffRows.length - 1]);
+                    }
+                }
+            }
+
+            const labels = { 'top': 'In cima', 'middle': 'A metà', 'bottom': 'Alla fine' };
+            showToast(`Posizione: ${labels[position] || position}`, 'info');
+        }
+
+        function filterDiff() {
+            const query = document.getElementById('diff-search').value.toLowerCase();
+            const activeBody = state.viewMode === 'split' 
+                ? [document.getElementById('diff-body-left'), document.getElementById('diff-body-right')] 
+                : [document.getElementById('diff-body-unified')];
+
+            activeBody.forEach(body => {
+                const rows = body.querySelectorAll('tr');
+                rows.forEach(row => {
+                    const text = row.textContent.toLowerCase();
+                    if (!query || text.includes(query)) {
+                        row.classList.remove('opacity-20');
+                    } else {
+                        row.classList.add('opacity-20');
+                    }
+                });
+            });
+        }
+
+        function exportPatch() {
+            const valA = document.getElementById('text-a').value;
+            const valB = document.getElementById('text-b').value;
+            
+            if (!valA && !valB) {
+                showToast('Nessun contenuto da esportare', 'error');
+                return;
+            }
+
+            const patch = Diff.createTwoFilesPatch(
+                state.fileAName, 
+                state.fileBName, 
+                valA, 
+                valB, 
+                'Originale', 
+                'Modificato'
+            );
+
+            const blob = new Blob([patch], { type: 'text/plain;charset=utf-8' });
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(blob);
+            link.download = `diff-${Date.now()}.patch`;
+            link.click();
+            URL.revokeObjectURL(link.href);
+
+            showToast('File .patch scaricato con successo!', 'success');
+        }
+
+        function copyPatchToClipboard() {
+            const valA = document.getElementById('text-a').value;
+            const valB = document.getElementById('text-b').value;
+
+            if (!valA && !valB) {
+                showToast('Nessun contenuto da copiare', 'error');
+                return;
+            }
+
+            const patch = Diff.createTwoFilesPatch(
+                state.fileAName, 
+                state.fileBName, 
+                valA, 
+                valB
+            );
+
+            copyToClipboard(patch);
+            showToast('Diff copiato negli appunti!', 'success');
+        }
+
+        function copyToClipboard(text) {
+            const textarea = document.createElement('textarea');
+            textarea.value = text;
+            document.body.appendChild(textarea);
+            textarea.select();
+            document.execCommand('copy');
+            document.body.removeChild(textarea);
+        }
+
+        function showToast(message, type = 'info') {
+            const toast = document.getElementById('toast');
+            const toastMsg = document.getElementById('toast-message');
+            const toastIcon = document.getElementById('toast-icon');
+
+            toastMsg.textContent = message;
+
+            if (type === 'success') {
+                toastIcon.className = 'fa-solid fa-circle-check text-emerald-400 text-base';
+            } else if (type === 'error') {
+                toastIcon.className = 'fa-solid fa-circle-xmark text-rose-400 text-base';
+            } else {
+                toastIcon.className = 'fa-solid fa-circle-info text-cyan-400 text-base';
+            }
+
+            toast.classList.remove('translate-y-20', 'opacity-0');
+            
+            setTimeout(() => {
+                toast.classList.add('translate-y-20', 'opacity-0');
+            }, 3000);
+        }
+
+        function escapeHTML(str) {
+            return str
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#039;');
+        }
+    </script>
+</body>
+</html>
