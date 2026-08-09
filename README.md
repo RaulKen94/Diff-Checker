@@ -71,6 +71,7 @@ Un'applicazione web leggera, performante e in un unico file HTML monolitico, pro
 
 ![Versione](https://img.shields.io/badge/versione-1.3.0-blue.svg)
 ![Licenza](https://img.shields.io/badge/licenza-CC--BY--NC--4.0-orange.svg)
+![Dipendenze](https://img.shields.io/badge/dependencies-zero--install-brightgreen.svg)
 
 ---
 
