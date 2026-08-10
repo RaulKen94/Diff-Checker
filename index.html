@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="version" content="1.3.0">
+    <meta name="version" content="1.3.1">
     <title>Diff Checker</title>
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
@@ -67,11 +67,6 @@
             white-space: pre;
         }
 
-        .diff-line.wrap-text {
-            white-space: pre-wrap;
-            word-break: break-all;
-        }
-
         .diff-gutter {
             user-select: none;
             -webkit-user-select: none;
@@ -126,7 +121,7 @@
             </div>
             <div>
                 <h1 class="text-base font-bold tracking-tight text-white flex items-center gap-2">
-                    Diff Checker <span class="text-[10px] font-semibold px-2 py-0.5 rounded bg-indigo-500/20 text-indigo-400 border border-indigo-500/30">v1.3.0</span>
+                    Diff Checker <span class="text-[10px] font-semibold px-2 py-0.5 rounded bg-indigo-500/20 text-indigo-400 border border-indigo-500/30">v1.3.1</span>
                 </h1>
             </div>
         </div>
@@ -224,7 +219,7 @@
         <!-- Main Visual Diff Viewer Component -->
         <div id="diff-viewer-panel" class="flex-1 simple-panel rounded-lg flex flex-col overflow-hidden relative shadow-lg">
             
-            <!-- In-Panel Header Bar (Includes view toggles, search, and Fullscreen Exit button) -->
+            <!-- In-Panel Header Bar -->
             <div id="diff-panel-header" class="bg-slate-900 px-3 py-2 border-b border-slate-800 flex flex-wrap items-center justify-between gap-2 text-xs shrink-0">
                 <div class="flex items-center gap-3">
                     <span class="font-bold text-slate-200 uppercase tracking-wider text-[11px] flex items-center gap-1.5">
@@ -249,7 +244,7 @@
                         <i class="fa-solid fa-search absolute right-2 top-2 text-[10px] text-slate-500"></i>
                     </div>
 
-                    <!-- Quick Scroll Buttons (In cima, A metà, Alla fine) -->
+                    <!-- Quick Scroll Buttons -->
                     <div class="flex items-center bg-slate-950 p-0.5 rounded-lg border border-slate-800 gap-0.5">
                         <button onclick="scrollDiffTo('top')" class="px-2 py-1 hover:bg-slate-800 text-slate-300 hover:text-white rounded text-xs font-medium transition flex items-center gap-1" title="Vai in cima">
                             <i class="fa-solid fa-angles-up text-[11px]"></i>
@@ -272,7 +267,7 @@
                         <i class="fa-solid fa-chevron-down text-xs"></i>
                     </button>
 
-                    <!-- Fullscreen Toggle Button (Always visible inside panel) -->
+                    <!-- Fullscreen Toggle Button -->
                     <button onclick="toggleFullscreen()" id="btn-fullscreen" class="px-2.5 py-1 bg-indigo-600 hover:bg-indigo-500 text-white rounded border border-indigo-500 font-medium flex items-center gap-1.5 transition shadow-sm" title="Espandi a Schermo Intero">
                         <i class="fa-solid fa-expand" id="icon-fullscreen"></i>
                         <span id="label-fullscreen">Schermo intero</span>
@@ -330,9 +325,6 @@
                     </table>
                 </div>
             </div>
-
-            <!-- Minimap Strip -->
-            <div id="minimap-bar" class="absolute right-0 top-8 bottom-0 w-2.5 bg-slate-950/40 border-l border-slate-800/50 pointer-events-none z-20"></div>
         </div>
     </main>
 
@@ -346,25 +338,19 @@
         // --- Application State ---
         const state = {
             viewMode: 'split',
-            ignoreWhitespace: false,
-            ignoreCase: false,
-            collapseUnchanged: false,
-            wordWrap: false,
             isFullscreen: false,
             fileAName: 'File A',
             fileBName: 'File B',
             diffChunks: [],
-            currentDiffIndex: -1,
-            diffLinesIndices: []
+            currentDiffIndex: -1
         };
 
         window.addEventListener('DOMContentLoaded', () => {
             setupDragAndDrop('dropzone-a', 'a');
             setupDragAndDrop('dropzone-b', 'b');
             setupSynchronizedScroll();
-            triggerDiff(); // Start empty
+            triggerDiff();
 
-            // Keyboard shortcut ESC to exit fullscreen
             document.addEventListener('keydown', (e) => {
                 if (e.key === 'Escape' && state.isFullscreen) {
                     toggleFullscreen();
@@ -382,9 +368,8 @@
             state.isFullscreen = !state.isFullscreen;
 
             if (state.isFullscreen) {
-                // Force unified (mono-finestra) view for fullscreen mode as requested
                 setViewMode('unified');
-                if (viewSelector) viewSelector.classList.add('hidden'); // Hide split toggle in full screen
+                if (viewSelector) viewSelector.classList.add('hidden');
 
                 viewer.classList.add('diff-fullscreen');
                 icon.className = 'fa-solid fa-compress';
@@ -557,19 +542,10 @@
             renderDiff();
         }
 
-        function toggleWordWrap() {
-            state.wordWrap = !state.wordWrap;
-            document.querySelectorAll('.diff-line').forEach(el => {
-                if (state.wordWrap) el.classList.add('wrap-text');
-                else el.classList.remove('wrap-text');
-            });
-        }
-
         function triggerDiff() {
             const valA = document.getElementById('text-a').value;
             const valB = document.getElementById('text-b').value;
 
-            // Update line counters
             const linesA = valA ? valA.split('\n').length : 0;
             const linesB = valB ? valB.split('\n').length : 0;
             document.getElementById('file-a-stats').textContent = `${linesA} ${linesA === 1 ? 'riga' : 'righe'}`;
@@ -589,16 +565,7 @@
                 emptyState.classList.add('hidden');
             }
 
-            state.ignoreWhitespace = false;
-            state.ignoreCase = false;
-            state.collapseUnchanged = false;
-
-            const options = {
-                ignoreWhitespace: state.ignoreWhitespace,
-                ignoreCase: state.ignoreCase
-            };
-
-            state.diffChunks = Diff.diffLines(valA, valB, options);
+            state.diffChunks = Diff.diffLines(valA, valB);
             renderDiff();
         }
 
@@ -618,13 +585,6 @@
             let lineNumA = 1;
             let lineNumB = 1;
 
-            state.diffLinesIndices = [];
-
-            const minimap = document.getElementById('minimap-bar');
-            minimap.innerHTML = '';
-
-            const wrapClass = state.wordWrap ? 'wrap-text' : '';
-
             let i = 0;
             const chunks = state.diffChunks;
 
@@ -636,9 +596,9 @@
                     unchangedCount += lines.length;
 
                     lines.forEach((lineText) => {
-                        appendSplitRow(bodyLeft, lineNumA, lineText, 'normal', wrapClass);
-                        appendSplitRow(bodyRight, lineNumB, lineText, 'normal', wrapClass);
-                        appendUnifiedRow(bodyUnified, lineNumA, lineNumB, ' ', lineText, 'normal', wrapClass);
+                        appendSplitRow(bodyLeft, lineNumA, lineText, 'normal');
+                        appendSplitRow(bodyRight, lineNumB, lineText, 'normal');
+                        appendUnifiedRow(bodyUnified, lineNumA, lineNumB, ' ', lineText, 'normal');
 
                         lineNumA++;
                         lineNumB++;
@@ -671,25 +631,25 @@
                         let wordDiffAdd = null;
 
                         if (remLine !== undefined && addLine !== undefined) {
-                            const wordDiff = Diff.diffWords(remLine, addLine, { ignoreCase: state.ignoreCase });
+                            const wordDiff = Diff.diffWords(remLine, addLine);
                             wordDiffRem = buildWordDiffHTML(wordDiff, 'remove');
                             wordDiffAdd = buildWordDiffHTML(wordDiff, 'add');
                         }
 
                         if (remLine !== undefined) {
-                            appendSplitRow(bodyLeft, lineNumA, remLine, 'remove', wrapClass, wordDiffRem);
-                            appendUnifiedRow(bodyUnified, lineNumA, '', '-', remLine, 'remove', wrapClass, wordDiffRem);
+                            appendSplitRow(bodyLeft, lineNumA, remLine, 'remove', wordDiffRem);
+                            appendUnifiedRow(bodyUnified, lineNumA, '', '-', remLine, 'remove', wordDiffRem);
                             lineNumA++;
                         } else {
-                            appendSplitRow(bodyLeft, '', '', 'empty', wrapClass);
+                            appendSplitRow(bodyLeft, '', '', 'empty');
                         }
 
                         if (addLine !== undefined) {
-                            appendSplitRow(bodyRight, lineNumB, addLine, 'add', wrapClass, wordDiffAdd);
-                            appendUnifiedRow(bodyUnified, '', lineNumB, '+', addLine, 'add', wrapClass, wordDiffAdd);
+                            appendSplitRow(bodyRight, lineNumB, addLine, 'add', wordDiffAdd);
+                            appendUnifiedRow(bodyUnified, '', lineNumB, '+', addLine, 'add', wordDiffAdd);
                             lineNumB++;
                         } else {
-                            appendSplitRow(bodyRight, '', '', 'empty', wrapClass);
+                            appendSplitRow(bodyRight, '', '', 'empty');
                         }
                     }
                 }
@@ -698,10 +658,6 @@
             document.getElementById('stat-added').textContent = addedCount;
             document.getElementById('stat-removed').textContent = removedCount;
             document.getElementById('stat-unchanged').textContent = unchangedCount;
-
-            if (state.collapseUnchanged) {
-                applyCollapseUnchanged();
-            }
         }
 
         function buildWordDiffHTML(wordDiffArray, type) {
@@ -725,7 +681,7 @@
             return html;
         }
 
-        function appendSplitRow(tbody, lineNum, text, type, wrapClass, customHTML = null) {
+        function appendSplitRow(tbody, lineNum, text, type, customHTML = null) {
             const tr = document.createElement('tr');
             let bgClass = 'hover:bg-slate-800/40';
             let numClass = 'text-slate-600 bg-slate-900/50';
@@ -746,12 +702,12 @@
             tr.className = `${bgClass} transition-colors`;
             tr.innerHTML = `
                 <td class="diff-gutter w-12 text-right pr-3 py-0.5 select-none font-mono text-xs border-r border-slate-800 ${numClass}">${lineNum}</td>
-                <td class="pl-3 pr-2 py-0.5 diff-line ${wrapClass}">${lineContent}</td>
+                <td class="pl-3 pr-2 py-0.5 diff-line">${lineContent}</td>
             `;
             tbody.appendChild(tr);
         }
 
-        function appendUnifiedRow(tbody, lineNumA, lineNumB, prefix, text, type, wrapClass, customHTML = null) {
+        function appendUnifiedRow(tbody, lineNumA, lineNumB, prefix, text, type, customHTML = null) {
             const tr = document.createElement('tr');
             let bgClass = 'hover:bg-slate-800/40';
             let prefixColor = 'text-slate-600';
@@ -771,38 +727,9 @@
                 <td class="diff-gutter w-10 text-right pr-2 py-0.5 select-none font-mono text-xs text-slate-600 bg-slate-900/50 border-r border-slate-800">${lineNumA}</td>
                 <td class="diff-gutter w-10 text-right pr-2 py-0.5 select-none font-mono text-xs text-slate-600 bg-slate-900/50 border-r border-slate-800">${lineNumB}</td>
                 <td class="w-6 text-center py-0.5 font-mono text-xs ${prefixColor} select-none">${prefix}</td>
-                <td class="pl-2 pr-2 py-0.5 diff-line ${wrapClass}">${lineContent}</td>
+                <td class="pl-2 pr-2 py-0.5 diff-line">${lineContent}</td>
             `;
             tbody.appendChild(tr);
-        }
-
-        function applyCollapseUnchanged() {
-            const collapseRows = (tbody) => {
-                const rows = Array.from(tbody.querySelectorAll('tr'));
-                let unchangedBlock = [];
-
-                rows.forEach((row) => {
-                    const isNormal = !row.classList.contains('bg-emerald-950/25') && !row.classList.contains('bg-rose-950/25') && !row.classList.contains('bg-slate-950/50');
-                    
-                    if (isNormal) {
-                        unchangedBlock.push(row);
-                    } else {
-                        if (unchangedBlock.length > 6) {
-                            for (let i = 3; i < unchangedBlock.length - 3; i++) {
-                                unchangedBlock[i].classList.add('hidden');
-                            }
-                        }
-                        unchangedBlock = [];
-                    }
-                });
-            };
-
-            if (state.viewMode === 'split') {
-                collapseRows(document.getElementById('diff-body-left'));
-                collapseRows(document.getElementById('diff-body-right'));
-            } else {
-                collapseRows(document.getElementById('diff-body-unified'));
-            }
         }
 
         function setupSynchronizedScroll() {
@@ -854,7 +781,6 @@
             showToast(`Differenza ${state.currentDiffIndex + 1} di ${diffRows.length}`, 'info');
         }
 
-        // --- Evidenziazione visiva blu per la riga selezionata ---
         function highlightDiffRow(targetRow) {
             if (!targetRow) return;
             document.querySelectorAll('tr.ring-2').forEach(r => r.classList.remove('ring-2', 'ring-indigo-500'));
@@ -862,7 +788,6 @@
             setTimeout(() => targetRow.classList.remove('ring-2', 'ring-indigo-500'), 1500);
         }
 
-        // --- Quick Scroll Navigation (Top, Middle, Bottom) ---
         function scrollDiffTo(position) {
             const isSplit = state.viewMode === 'split';
             const containers = isSplit 
@@ -881,7 +806,6 @@
                 container.scrollTo({ top: target, behavior: 'smooth' });
             });
 
-            // Sincronizza l'indice di selezione e l'evidenziazione blu per Cima e Fine
             const container = isSplit ? document.getElementById('diff-body-left') : document.getElementById('diff-body-unified');
             if (container) {
                 const diffRows = Array.from(container.querySelectorAll('tr')).filter(row => 
@@ -922,60 +846,19 @@
             });
         }
 
-        function exportPatch() {
-            const valA = document.getElementById('text-a').value;
-            const valB = document.getElementById('text-b').value;
-            
-            if (!valA && !valB) {
-                showToast('Nessun contenuto da esportare', 'error');
-                return;
-            }
-
-            const patch = Diff.createTwoFilesPatch(
-                state.fileAName, 
-                state.fileBName, 
-                valA, 
-                valB, 
-                'Originale', 
-                'Modificato'
-            );
-
-            const blob = new Blob([patch], { type: 'text/plain;charset=utf-8' });
-            const link = document.createElement('a');
-            link.href = URL.createObjectURL(blob);
-            link.download = `diff-${Date.now()}.patch`;
-            link.click();
-            URL.revokeObjectURL(link.href);
-
-            showToast('File .patch scaricato con successo!', 'success');
-        }
-
-        function copyPatchToClipboard() {
-            const valA = document.getElementById('text-a').value;
-            const valB = document.getElementById('text-b').value;
-
-            if (!valA && !valB) {
-                showToast('Nessun contenuto da copiare', 'error');
-                return;
-            }
-
-            const patch = Diff.createTwoFilesPatch(
-                state.fileAName, 
-                state.fileBName, 
-                valA, 
-                valB
-            );
-
-            copyToClipboard(patch);
-            showToast('Diff copiato negli appunti!', 'success');
-        }
-
         function copyToClipboard(text) {
             const textarea = document.createElement('textarea');
             textarea.value = text;
+            textarea.style.position = 'fixed';
+            textarea.style.left = '-9999px';
+            textarea.style.top = '-9999px';
             document.body.appendChild(textarea);
             textarea.select();
-            document.execCommand('copy');
+            try {
+                document.execCommand('copy');
+            } catch (err) {
+                console.error('Errore durante la copia negli appunti:', err);
+            }
             document.body.removeChild(textarea);
         }
 
