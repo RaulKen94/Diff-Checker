@@ -12,7 +12,7 @@
 A lightweight, high-performance, single-file HTML web application designed for fast, secure, and intuitive text/code diff analysis directly in your browser.
 
 ![Version](https://img.shields.io/badge/version-1.3.0-blue.svg)
-![License](https://img.shields.io/badge/license-CC--BY--NC--4.0-orange.svg)
+[![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 ![Dependencies](https://img.shields.io/badge/dependencies-zero--install-brightgreen.svg)
 
 ---
@@ -74,7 +74,7 @@ This project is licensed under the **Creative Commons Attribution-NonCommercial 
 Un'applicazione web leggera, performante e in un unico file HTML monolitico, progettata per il confronto rapido e sicuro di testo e codice direttamente all'interno del browser.
 
 ![Versione](https://img.shields.io/badge/versione-1.3.0-blue.svg)
-![Licenza](https://img.shields.io/badge/licenza-CC--BY--NC--4.0-orange.svg)
+[![Licenza](https://img.shields.io/badge/Licenza-Apache_2.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 ![Dipendenze](https://img.shields.io/badge/dipendenze-zero--install-brightgreen.svg)
 
 ---
